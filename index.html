@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ziggi Servicing</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #1a1a2e;
+      color: #E8E8EC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 40px;
+      line-height: 1.5;
+    }
+
+    h1 {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 32px;
+    }
+
+    h1 .accent {
+      color: #C8F650;
+    }
+
+    /* Row of stat boxes */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .stat-box {
+      background-color: #14141C;
+      border: 1px solid #22222E;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8A8A99;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #C8F650;
+    }
+
+    /* The loans table */
+    .table-card {
+      background-color: #14141C;
+      border: 1px solid #22222E;
+      border-radius: 12px;
+      padding: 8px 8px 4px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8A8A99;
+      padding: 16px;
+      border-bottom: 1px solid #22222E;
+    }
+
+    td {
+      padding: 16px;
+      border-bottom: 1px solid #1C1C26;
+      font-size: 15px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: #1A1A24;
+    }
+
+    .loan-id {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      color: #C8F650;
+    }
+
+    .balance {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Status pills */
+    .status {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+
+    .status.current {
+      background-color: rgba(200, 246, 80, 0.15);
+      color: #C8F650;
+    }
+
+    .status.late {
+      background-color: rgba(255, 99, 99, 0.15);
+      color: #FF8585;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Ziggi Servicing <span class="accent"> Roei Build </span></h1>
+
+  <!-- Four summary boxes -->
+<section class="stats">
+  <div class="stat-box">
+    <div class="stat-label">Total Loans</div>
+    <div class="stat-value" id="statTotal">580</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Total UPB</div>
+    <div class="stat-value" id="statUPB">$94.2M</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Current</div>
+    <div class="stat-value" id="statCurrent">540</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Late</div>
+    <div class="stat-value" id="statLate">40</div>
+  </div>
+</section>
+
+  <!-- Loan list -->
+  <section class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Loan ID</th>
+          <th>Borrower</th>
+          <th>Balance</th>
+          <th>P&I / mo</th> 
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="loanRows">
+
+      <script>
+        function monthlyPayment(principal) {
+          const monthlyRate = 0.07 / 12;
+          const numPayments = 30 * 12;
+          const growth = Math.pow(1 + monthlyRate, numPayments);
+          return principal * monthlyRate * growth / (growth - 1);
+        }
+      
+        const loans = [
+          { id: "ZG-10042", borrower: "Maria Alvarez",  balance: 312450, status: "current" },
+          { id: "ZG-10118", borrower: "James Okonkwo",   balance: 188900, status: "current" },
+          { id: "ZG-10205", borrower: "Priya Nair",      balance: 425000, status: "late"    },
+          { id: "ZG-10311", borrower: "Daniel Schmidt",  balance: 97300,  status: "current" },
+          { id: "ZG-10387", borrower: "Aisha Rahman",    balance: 256780, status: "current" },
+          { id: "ZG-10440", borrower: "Robert Chen",     balance: 900000, status: "late"    },
+          { id: "ZG-10512", borrower: "Elena Petrova",   balance: 143600, status: "current" },
+          { id: "ZG-10579", borrower: "Thomas Wright",   balance: 278950, status: "current" },
+        ];
+        let totalLoans = 0;
+let totalUPB   = 0;
+let currentCount = 0;
+let lateCount    = 0;
+
+for (const loan of loans) {
+  totalLoans = totalLoans + 1;
+  totalUPB   = totalUPB + loan.balance;
+  if (loan.status === "late") {
+    lateCount = lateCount + 1;
+  } else {
+    currentCount = currentCount + 1;
+  }
+}
+      
+        const tbody = document.getElementById("loanRows");
+      
+        for (const loan of loans) {
+          const pi = monthlyPayment(loan.balance);
+      
+          const balanceText = "$" + loan.balance.toLocaleString();
+          const piText      = "$" + Math.round(pi).toLocaleString();
+          const statusLabel = loan.status === "late" ? "Late" : "Current";
+      
+          tbody.innerHTML += `
+            <tr>
+              <td class="loan-id">${loan.id}</td>
+              <td>${loan.borrower}</td>
+              <td class="balance">${balanceText}</td>
+              <td class="balance">${piText}</td>
+              <td><span class="status ${loan.status}">${statusLabel}</span></td>
+            </tr>`; }
+   
+            document.getElementById("statTotal").textContent   = totalLoans;
+            document.getElementById("statUPB").textContent     = "$" + totalUPB.toLocaleString();
+            document.getElementById("statCurrent").textContent = currentCount;
+            document.getElementById("statLate").textContent    = lateCount;
+  </script>
+      </tbody>
+    </table>
+  </section>
+
+</body>
+</html>
