@@ -150,6 +150,14 @@
 </section>
 <button id="filterLate">Show late only</button>
 <button id="showAll">Show all</button>
+
+<div style="margin-top:16px">
+  <input id="newId"       placeholder="Loan ID">
+  <input id="newBorrower" placeholder="Borrower">
+  <input id="newBalance"  placeholder="Balance" type="number">
+  <button id="addLoan">Add loan</button>
+</div>
+
   <!-- Loan list -->
   <section class="table-card">
     <table>
@@ -157,7 +165,7 @@
         <tr>
           <th>Loan ID</th>
           <th>Borrower</th>
-          <th>Balance</th>
+          <th id="sortBalance">Balance</th>
           <th>P&I / mo</th> 
           <th>Status</th>
         </tr>
@@ -200,12 +208,12 @@ lateCount = lateCount + 1;
 } else {
 currentCount = currentCount + 1;
 }
-
+}
 document.getElementById("statTotal").textContent   = totalLoans;
 document.getElementById("statUPB").textContent     = "$" + totalUPB.toLocaleString();
 document.getElementById("statCurrent").textContent = currentCount;
 document.getElementById("statLate").textContent    = lateCount;
-}
+
 }
   
     const tbody = document.getElementById("loanRows");
@@ -238,6 +246,32 @@ document.getElementById("statLate").textContent    = lateCount;
       renderRows(lateLoans);
       renderStats(lateLoans);
     });
+   
+   
+    let balanceAscending = true;
+
+document.getElementById("sortBalance").addEventListener("click", function () {
+  const sortedByBalance = [...loans].sort((a, b) =>
+    balanceAscending ? a.balance - b.balance : b.balance - a.balance
+  );
+  renderRows(sortedByBalance);
+  balanceAscending = !balanceAscending;
+});
+document.getElementById("addLoan").addEventListener("click", function () {
+  const id       = document.getElementById("newId").value;
+  const borrower = document.getElementById("newBorrower").value;
+  const balance  = Number(document.getElementById("newBalance").value);
+
+  if (id === "" || borrower === "" || balance <= 0 || Number.isNaN(balance)) {
+    alert("Please enter a loan ID, a borrower, and a balance greater than 0.");
+    return;
+  }
+
+  const newLoan = { id, borrower, balance, status: "current" };
+  loans.push(newLoan);
+  renderRows(loans);
+  renderStats(loans);
+}); 
 
     document.getElementById("showAll").addEventListener("click", function () {
   renderRows(loans);
