@@ -148,7 +148,8 @@
     <div class="stat-value" id="statLate">40</div>
   </div>
 </section>
-
+<button id="filterLate">Show late only</button>
+<button id="showAll">Show all</button>
   <!-- Loan list -->
   <section class="table-card">
     <table>
@@ -161,67 +162,88 @@
           <th>Status</th>
         </tr>
       </thead>
-      <tbody id="loanRows">
-
-      <script>
-        function monthlyPayment(principal) {
-          const monthlyRate = 0.07 / 12;
-          const numPayments = 30 * 12;
-          const growth = Math.pow(1 + monthlyRate, numPayments);
-          return principal * monthlyRate * growth / (growth - 1);
-        }
-      
-        const loans = [
-          { id: "ZG-10042", borrower: "Maria Alvarez",  balance: 312450, status: "current" },
-          { id: "ZG-10118", borrower: "James Okonkwo",   balance: 188900, status: "current" },
-          { id: "ZG-10205", borrower: "Priya Nair",      balance: 425000, status: "late"    },
-          { id: "ZG-10311", borrower: "Daniel Schmidt",  balance: 97300,  status: "current" },
-          { id: "ZG-10387", borrower: "Aisha Rahman",    balance: 256780, status: "current" },
-          { id: "ZG-10440", borrower: "Robert Chen",     balance: 900000, status: "late"    },
-          { id: "ZG-10512", borrower: "Elena Petrova",   balance: 143600, status: "current" },
-          { id: "ZG-10579", borrower: "Thomas Wright",   balance: 278950, status: "current" },
-        ];
-        let totalLoans = 0;
-let totalUPB   = 0;
-let currentCount = 0;
-let lateCount    = 0;
-
-for (const loan of loans) {
-  totalLoans = totalLoans + 1;
-  totalUPB   = totalUPB + loan.balance;
-  if (loan.status === "late") {
-    lateCount = lateCount + 1;
-  } else {
-    currentCount = currentCount + 1;
-  }
-}
-      
-        const tbody = document.getElementById("loanRows");
-      
-        for (const loan of loans) {
-          const pi = monthlyPayment(loan.balance);
-      
-          const balanceText = "$" + loan.balance.toLocaleString();
-          const piText      = "$" + Math.round(pi).toLocaleString();
-          const statusLabel = loan.status === "late" ? "Late" : "Current";
-      
-          tbody.innerHTML += `
-            <tr>
-              <td class="loan-id">${loan.id}</td>
-              <td>${loan.borrower}</td>
-              <td class="balance">${balanceText}</td>
-              <td class="balance">${piText}</td>
-              <td><span class="status ${loan.status}">${statusLabel}</span></td>
-            </tr>`; }
-   
-            document.getElementById("statTotal").textContent   = totalLoans;
-            document.getElementById("statUPB").textContent     = "$" + totalUPB.toLocaleString();
-            document.getElementById("statCurrent").textContent = currentCount;
-            document.getElementById("statLate").textContent    = lateCount;
-  </script>
+      <tbody id="loanRows"> 
+        
       </tbody>
     </table>
   </section>
 
+  <script>
+    function monthlyPayment(principal) {
+      const monthlyRate = 0.07 / 12;
+      const numPayments = 30 * 12;
+      const growth = Math.pow(1 + monthlyRate, numPayments);
+      return principal * monthlyRate * growth / (growth - 1);
+    }
+  
+    const loans = [
+      { id: "ZG-10042", borrower: "Maria Alvarez",  balance: 312450, status: "current" },
+      { id: "ZG-10118", borrower: "James Okonkwo",   balance: 188900, status: "current" },
+      { id: "ZG-10205", borrower: "Priya Nair",      balance: 425000, status: "late"    },
+      { id: "ZG-10311", borrower: "Daniel Schmidt",  balance: 97300,  status: "current" },
+      { id: "ZG-10387", borrower: "Aisha Rahman",    balance: 256780, status: "current" },
+      { id: "ZG-10440", borrower: "Robert Chen",     balance: 900000, status: "late"    },
+      { id: "ZG-10512", borrower: "Elena Petrova",   balance: 143600, status: "current" },
+      { id: "ZG-10579", borrower: "Thomas Wright",   balance: 278950, status: "current" },
+    ];
+    function renderStats(loansToShow) {
+    let totalLoans = 0;
+let totalUPB   = 0;
+let currentCount = 0;
+let lateCount    = 0;
+
+for (const loan of loansToShow) {
+  totalLoans = totalLoans + 1;
+totalUPB   = totalUPB + loan.balance;
+if (loan.status === "late") {
+lateCount = lateCount + 1;
+} else {
+currentCount = currentCount + 1;
+}
+
+document.getElementById("statTotal").textContent   = totalLoans;
+document.getElementById("statUPB").textContent     = "$" + totalUPB.toLocaleString();
+document.getElementById("statCurrent").textContent = currentCount;
+document.getElementById("statLate").textContent    = lateCount;
+}
+}
+  
+    const tbody = document.getElementById("loanRows");
+
+    function renderRows(loansToShow) {
+      tbody.innerHTML = "";
+
+      for (const loan of loansToShow) {
+        const pi = monthlyPayment(loan.balance);
+        const balanceText = "$" + loan.balance.toLocaleString();
+        const piText      = "$" + Math.round(pi).toLocaleString();
+        const statusLabel = loan.status === "late" ? "Late" : "Current";
+
+        tbody.innerHTML += `
+          <tr>
+            <td class="loan-id">${loan.id}</td>
+            <td>${loan.borrower}</td>
+            <td class="balance">${balanceText}</td>
+            <td class="balance">${piText}</td>
+            <td><span class="status ${loan.status}">${statusLabel}</span></td>
+          </tr>`;
+      }
+    }
+
+    renderRows(loans);
+    renderStats(loans);
+
+    document.getElementById("filterLate").addEventListener("click", function () {
+      const lateLoans = loans.filter(loan => loan.status === "late");
+      renderRows(lateLoans);
+      renderStats(lateLoans);
+    });
+
+    document.getElementById("showAll").addEventListener("click", function () {
+  renderRows(loans);
+  renderStats(loans);
+});
+
+</script>
 </body>
 </html>
