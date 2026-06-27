@@ -184,7 +184,10 @@
       return principal * monthlyRate * growth / (growth - 1);
     }
   
-    const loans = [
+    const saved = localStorage.getItem("loans");
+const loans = saved
+  ? JSON.parse(saved): 
+  [
       { id: "ZG-10042", borrower: "Maria Alvarez",  balance: 312450, status: "current" },
       { id: "ZG-10118", borrower: "James Okonkwo",   balance: 188900, status: "current" },
       { id: "ZG-10205", borrower: "Priya Nair",      balance: 425000, status: "late"    },
@@ -269,6 +272,7 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
   const newLoan = { id, borrower, balance, status: "current" };
   loans.push(newLoan);
+  localStorage.setItem("loans", JSON.stringify(loans));
   renderRows(loans);
   renderStats(loans);
 }); 
