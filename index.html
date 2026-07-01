@@ -177,6 +177,9 @@
   </section>
 
   <script>
+   const SUPABASE_URL = "https://ayrwgcunucjncahxiklt.supabase.co";
+   const SUPABASE_KEY = "sb_publishable_h_ZpRvOi8D9VQwpji3OzyA_H8kK9-JR";
+  
     function monthlyPayment(principal) {
       const monthlyRate = 0.07 / 12;
       const numPayments = 30 * 12;
@@ -185,8 +188,7 @@
     }
   
     const saved = localStorage.getItem("loans");
-const loans = saved
-  ? JSON.parse(saved): 
+    let loans = saved ? JSON.parse(saved): 
   [
       { id: "ZG-10042", borrower: "Maria Alvarez",  balance: 312450, status: "current" },
       { id: "ZG-10118", borrower: "James Okonkwo",   balance: 188900, status: "current" },
@@ -240,9 +242,19 @@ document.getElementById("statLate").textContent    = lateCount;
           </tr>`;
       }
     }
-
+    async function loadLoans() {
+      const response = await fetch(SUPABASE_URL + "/rest/v1/Loan?select=*", {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: "Bearer " + SUPABASE_KEY
+    }
+  });
+  loans = await response.json();
+  console.log("from supabase:", loans);
     renderRows(loans);
     renderStats(loans);
+  }
+  loadLoans();
 
     document.getElementById("filterLate").addEventListener("click", function () {
       const lateLoans = loans.filter(loan => loan.status === "late");
