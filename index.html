@@ -187,18 +187,7 @@
       return principal * monthlyRate * growth / (growth - 1);
     }
   
-    const saved = localStorage.getItem("loans");
-    let loans = saved ? JSON.parse(saved): 
-  [
-      { id: "ZG-10042", borrower: "Maria Alvarez",  balance: 312450, status: "current" },
-      { id: "ZG-10118", borrower: "James Okonkwo",   balance: 188900, status: "current" },
-      { id: "ZG-10205", borrower: "Priya Nair",      balance: 425000, status: "late"    },
-      { id: "ZG-10311", borrower: "Daniel Schmidt",  balance: 97300,  status: "current" },
-      { id: "ZG-10387", borrower: "Aisha Rahman",    balance: 256780, status: "current" },
-      { id: "ZG-10440", borrower: "Robert Chen",     balance: 900000, status: "late"    },
-      { id: "ZG-10512", borrower: "Elena Petrova",   balance: 143600, status: "current" },
-      { id: "ZG-10579", borrower: "Thomas Wright",   balance: 278950, status: "current" },
-    ];
+    let loans = [];
     function renderStats(loansToShow) {
     let totalLoans = 0;
 let totalUPB   = 0;
@@ -284,7 +273,7 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
   const newLoan = { id, borrower, balance, status: "current" };
   loans.push(newLoan);
-  fetch(SUPABASE_URL + "/rest/v1/Loan", { method: "POST", headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify(newLoan) }); 
+  fetch("/.netlify/functions/add-loan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newLoan) });
     renderRows(loans);
     renderStats(loans);
 }); 
