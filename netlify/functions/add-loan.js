@@ -17,5 +17,6 @@ exports.handler = async (event) => {
         body: JSON.stringify(loan)
       });
   
-    return { statusCode: 200, body: "hello from the server" };
+    const loans = await response.json();
+return { statusCode: 200, body: JSON.stringify(loans) };
   }
