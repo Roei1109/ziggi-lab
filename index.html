@@ -123,10 +123,64 @@
       background-color: rgba(255, 99, 99, 0.15);
       color: #FF8585;
     }
+
+    .login-card {
+      max-width: 400px;
+      background-color: #14141C;
+      border: 1px solid #22222E;
+      border-radius: 12px;
+      padding: 32px;
+    }
+
+    .login-card h2 {
+      font-size: 24px;
+      margin-bottom: 24px;
+    }
+
+    .login-card input {
+      display: block;
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      background-color: #1A1A24;
+      border: 1px solid #22222E;
+      border-radius: 8px;
+      color: #E8E8EC;
+      font-size: 15px;
+    }
+
+    .login-card button {
+      width: 100%;
+      margin-top: 8px;
+      padding: 12px;
+      background-color: #C8F650;
+      border: none;
+      border-radius: 8px;
+      color: #1a1a2e;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .login-error {
+      color: #FF8585;
+      font-size: 14px;
+      margin-top: 12px;
+      min-height: 20px;
+    }
   </style>
 </head>
 <body>
 
+  <section id="loginSection" class="login-card">
+    <h2>Sign in</h2>
+    <input id="loginEmail" type="email" placeholder="Email" autocomplete="username">
+    <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="loginBtn" type="button">Log in</button>
+    <div id="loginError" class="login-error"></div>
+  </section>
+
+  <div id="appSection" hidden>
   <h1>Ziggi Servicing <span class="accent"> Roei Build </span></h1>
 
   <!-- Four summary boxes -->
@@ -175,6 +229,7 @@
       </tbody>
     </table>
   </section>
+  </div>
 
   <script>
     function monthlyPayment(principal) {
@@ -228,15 +283,76 @@ document.getElementById("statLate").textContent    = lateCount;
           </tr>`;
       }
     }
-    async function loadLoans() {
-      const response = await fetch("/.netlify/functions/get-loans");
-  loans = await response.json();
-  console.log("from supabase:", loans);
-    renderRows(loans);
-    renderStats(loans);
-  }
+    const SESSION_KEY = "access_token";
 
-  loadLoans();
+    function authHeaders() {
+      const token = sessionStorage.getItem(SESSION_KEY);
+      return token ? { Authorization: "Bearer " + token } : {};
+    }
+
+    function showLogin() {
+      document.getElementById("loginSection").hidden = false;
+      document.getElementById("appSection").hidden = true;
+    }
+
+    function showApp() {
+      document.getElementById("loginSection").hidden = true;
+      document.getElementById("appSection").hidden = false;
+    }
+
+    async function loadLoans() {
+      const response = await fetch("/.netlify/functions/get-loans", {
+        headers: authHeaders(),
+      });
+
+      if (response.status === 401) {
+        sessionStorage.removeItem(SESSION_KEY);
+        showLogin();
+        return;
+      }
+
+      loans = await response.json();
+      console.log("from supabase:", loans);
+      renderRows(loans);
+      renderStats(loans);
+    }
+
+    async function login(email, password) {
+      const response = await fetch("/.netlify/functions/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        document.getElementById("loginError").textContent = "Invalid email or password.";
+        return false;
+      }
+
+      const { access_token } = await response.json();
+      sessionStorage.setItem(SESSION_KEY, access_token);
+      document.getElementById("loginError").textContent = "";
+      showApp();
+      await loadLoans();
+      return true;
+    }
+
+    document.getElementById("loginBtn").addEventListener("click", function () {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      if (email === "" || password === "") {
+        document.getElementById("loginError").textContent = "Enter email and password.";
+        return;
+      }
+      login(email, password);
+    });
+
+    if (sessionStorage.getItem(SESSION_KEY)) {
+      showApp();
+      loadLoans();
+    } else {
+      showLogin();
+    }
 
     document.getElementById("filterLate").addEventListener("click", function () {
       const lateLoans = loans.filter(loan => loan.status === "late");
@@ -266,7 +382,11 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
   const newLoan = { id, borrower, balance, status: "current" };
   loans.push(newLoan);
-  fetch("/.netlify/functions/add-loan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newLoan) });
+  fetch("/.netlify/functions/add-loan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(newLoan),
+  });
     renderRows(loans);
     renderStats(loans);
 }); 
