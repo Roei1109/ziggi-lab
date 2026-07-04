@@ -1,5 +1,5 @@
 const SUPABASE_URL = "https://ayrwgcunucjncahxiklt.supabase.co";
-const SUPABASE_KEY = "sb_publishable_h_ZpRvOi8D9VQwpji3OzyA_H8kK9-JR";
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 exports.handler =  async (event) => {
     const response = await fetch(SUPABASE_URL + "/rest/v1/Loan?select=*", {

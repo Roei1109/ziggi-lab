@@ -1,5 +1,5 @@
 const SUPABASE_URL = "https://ayrwgcunucjncahxiklt.supabase.co";
-const SUPABASE_KEY = "sb_publishable_h_ZpRvOi8D9VQwpji3OzyA_H8kK9-JR";
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 exports.handler = async (event) => {
     const loan = JSON.parse(event.body);
@@ -17,6 +17,5 @@ exports.handler = async (event) => {
         body: JSON.stringify(loan)
       });
   
-    const loans = await response.json();
-return { statusCode: 200, body: JSON.stringify(loans) };
-  }
+      return { statusCode: 200, body: "loan saved" };
+    }
