@@ -168,6 +168,42 @@
       margin-top: 12px;
       min-height: 20px;
     }
+
+    .ai-card {
+      background-color: #14141C;
+      border: 1px solid #22222E;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 40px;
+    }
+
+    .ai-card h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .ai-card input {
+      width: 100%;
+      padding: 12px 14px;
+      background-color: #1A1A24;
+      border: 1px solid #22222E;
+      border-radius: 8px;
+      color: #E8E8EC;
+      font-size: 15px;
+      margin-bottom: 12px;
+    }
+
+    .ai-answer {
+      margin-top: 16px;
+      padding: 16px;
+      background-color: #1A1A24;
+      border: 1px solid #22222E;
+      border-radius: 8px;
+      font-size: 15px;
+      white-space: pre-wrap;
+      min-height: 24px;
+      color: #E8E8EC;
+    }
   </style>
 </head>
 <body>
@@ -229,6 +265,13 @@
         
       </tbody>
     </table>
+  </section>
+
+  <section class="ai-card">
+    <h2>Ask about the loans</h2>
+    <input id="aiQuestion" type="text" placeholder="e.g. How many loans are late?">
+    <button id="askAi" type="button">Ask</button>
+    <div id="aiAnswer" class="ai-answer"></div>
   </section>
   </div>
 
@@ -401,6 +444,39 @@ document.getElementById("addLoan").addEventListener("click", function () {
   renderRows(loans);
   renderStats(loans);
 });
+
+    async function askQuestion() {
+      const question = document.getElementById("aiQuestion").value.trim();
+      if (question === "") return;
+
+      const answerEl = document.getElementById("aiAnswer");
+      answerEl.textContent = "Thinking…";
+
+      const response = await fetch("/.netlify/functions/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ question }),
+      });
+
+      if (response.status === 401) {
+        sessionStorage.removeItem(SESSION_KEY);
+        showLogin();
+        return;
+      }
+
+      if (!response.ok) {
+        answerEl.textContent = "Something went wrong. Please try again.";
+        return;
+      }
+
+      const { answer } = await response.json();
+      answerEl.textContent = answer;
+    }
+
+    document.getElementById("askAi").addEventListener("click", askQuestion);
+    document.getElementById("aiQuestion").addEventListener("keydown", function (event) {
+      if (event.key === "Enter") askQuestion();
+    });
 
 </script>
 </body>
