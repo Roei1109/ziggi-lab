@@ -44,7 +44,7 @@ exports.handler = async (event) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1024,
       system:
         "You answer questions about a mortgage loan servicing portfolio. Use only the loan data provided. Be concise and accurate.",
