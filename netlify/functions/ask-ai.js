@@ -62,6 +62,11 @@ exports.handler = async (event) => {
   });
 
   if (!aiResponse.ok) {
+    const errorBody = await aiResponse.text();
+    console.error("Anthropic request failed", {
+      status: aiResponse.status,
+      error: errorBody,
+    });
     return { statusCode: 500, body: "AI request failed" };
   }
 
