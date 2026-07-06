@@ -1,8 +1,8 @@
 const SUPABASE_URL = "https://ayrwgcunucjncahxiklt.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-exports.handler = async (event) => {
-  const { email, password } = JSON.parse(event.body);
+export default async function handler(req, res) {
+  const { email, password } = req.body;
 
   const response = await fetch(
     SUPABASE_URL + "/auth/v1/token?grant_type=password",
@@ -17,12 +17,9 @@ exports.handler = async (event) => {
   );
 
   if (!response.ok) {
-    return { statusCode: 401, body: "Invalid credentials" };
+    return res.status(401).send("Invalid credentials");
   }
 
   const session = await response.json();
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ access_token: session.access_token }),
-  };
-};
+  return res.status(200).json({ access_token: session.access_token });
+}

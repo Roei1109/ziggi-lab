@@ -345,7 +345,7 @@ document.getElementById("statLate").textContent    = lateCount;
     }
 
     async function loadLoans() {
-      const response = await fetch("/.netlify/functions/get-loans", {
+      const response = await fetch("/api/get-loans", {
         headers: authHeaders(),
       });
 
@@ -362,7 +362,7 @@ document.getElementById("statLate").textContent    = lateCount;
     }
 
     async function login(email, password) {
-      const response = await fetch("/.netlify/functions/login", {
+      const response = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -431,7 +431,7 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
   const newLoan = { id, borrower, balance, status: "current" };
   loans.push(newLoan);
-  fetch("/.netlify/functions/add-loan", {
+  fetch("/api/add-loan", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(newLoan),
@@ -452,7 +452,7 @@ document.getElementById("addLoan").addEventListener("click", function () {
       const answerEl = document.getElementById("aiAnswer");
       answerEl.textContent = "Thinking…";
 
-      const response = await fetch("/.netlify/functions/ask-ai", {
+      const response = await fetch("/api/ask-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ question }),

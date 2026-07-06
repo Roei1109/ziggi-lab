@@ -1,8 +1,8 @@
 const SUPABASE_URL = "https://ayrwgcunucjncahxiklt.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-async function verifyToken(event) {
-  const auth = event.headers.authorization || event.headers.Authorization;
+async function verifyToken(req) {
+  const auth = req.headers.authorization || req.headers.Authorization;
   if (!auth || !auth.startsWith("Bearer ")) return false;
 
   const token = auth.slice(7);
@@ -16,9 +16,9 @@ async function verifyToken(event) {
   return response.ok;
 }
 
-exports.handler = async (event) => {
-  if (!(await verifyToken(event))) {
-    return { statusCode: 401, body: "Unauthorized" };
+export default async function handler(req, res) {
+  if (!(await verifyToken(req))) {
+    return res.status(401).send("Unauthorized");
   }
 
   const response = await fetch(SUPABASE_URL + "/rest/v1/Loan?select=*", {
@@ -30,5 +30,5 @@ exports.handler = async (event) => {
   });
 
   const loans = await response.json();
-  return { statusCode: 200, body: JSON.stringify(loans) };
-};
+  return res.status(200).json(loans);
+}
