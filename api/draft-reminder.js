@@ -71,25 +71,32 @@ export default async function handler(req, res) {
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
       system:
-        "You draft a payment-reminder email for a single late mortgage loan on behalf of a loan servicer. " +
-        "The draft MUST include all of the following: the borrower's name, the loan ID, the overdue amount, " +
-        "how many days the loan is late, and a clear next step for the borrower (how to contact the servicer or make a payment). " +
-        "You are given the borrower's name and loan ID, but you are NOT given the overdue amount or the number of days late. " +
-        "For those two values, insert the literal placeholders [OVERDUE AMOUNT] and [DAYS LATE] exactly so a servicer can fill them in. " +
-        "Never invent, estimate, or guess any numbers, amounts, dates, or counts. " +
-        "Do NOT mention fees, penalties, or consequences, and do not make any threats. " +
-        "Keep the tone professional and courteous. Output only the email text.",
+        "You are a loan-servicing manager writing a personal payment-reminder letter to one borrower whose mortgage is past due. " +
+        "Write it the way a real manager would: warm, direct, and human, in flowing paragraphs of ordinary prose. " +
+        "Do not use a bulleted or labeled list of loan details; instead work every detail naturally into your sentences, " +
+        "the way you would if you were explaining the borrower's situation to them out loud. " +
+        "Your single most important goal is that the borrower quickly understands where their loan stands and exactly how to bring it up to date. " +
+        "Every letter must, in the course of the prose, name the borrower, refer to their loan by its ID, state the overdue amount, " +
+        "say how many days the payment is past due, and give one clear next step for making the payment or reaching your office. " +
+        "You know the borrower's name and their loan ID, but you do NOT know the overdue amount or the number of days past due. " +
+        "Wherever those two values belong in your sentences, write the literal text [OVERDUE AMOUNT] and [DAYS LATE] exactly as shown, " +
+        "and never replace, fill in, estimate, or guess them. " +
+        "Never invent any numbers, amounts, dates, or counts of any kind. " +
+        "Do not mention fees, penalties, or consequences, and never threaten the borrower. " +
+        "Keep the tone professional and considerate throughout. " +
+        "Write only the letter itself, as plain readable text with no markdown, asterisks, headings, or other formatting symbols.",
       messages: [
         {
           role: "user",
           content:
-            "Draft the payment-reminder email for this late loan:\n" +
-            "Borrower: " +
+            "Please write the payment-reminder letter for this borrower. " +
+            "The borrower's name is " +
             loan.borrower +
-            "\nLoan ID: " +
+            " and their loan is identified as " +
             loan.id +
-            "\nStatus: " +
-            loan.status,
+            ". " +
+            "Remember that you do not know the overdue amount or the number of days past due, " +
+            "so use the placeholders [OVERDUE AMOUNT] and [DAYS LATE] verbatim where those belong.",
         },
       ],
     }),
