@@ -216,6 +216,22 @@
       min-height: 24px;
       color: #E8E8EC;
     }
+
+    .triage-btn {
+      padding: 10px 20px;
+      background-color: #C8F650;
+      border: none;
+      border-radius: 8px;
+      color: #1a1a2e;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .triage-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
   </style>
 </head>
 <body>
@@ -282,6 +298,27 @@
   <section class="ai-card">
     <h2>Payment reminder draft</h2>
     <div id="draftBox" class="ai-answer">Click “Draft reminder” on a late loan to generate a draft.</div>
+  </section>
+
+  <section class="ai-card">
+    <h2>Call-list triage</h2>
+    <p style="color:#8A8A99;font-size:14px;margin-bottom:16px">Rank the late loans into a prioritized call list.</p>
+    <button id="triageBtn" type="button" class="triage-btn">Triage</button>
+    <div id="triageStatus" class="ai-answer" hidden></div>
+    <div id="triageTableWrap" class="table-card" style="margin-top:16px" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Loan ID</th>
+            <th>Borrower</th>
+            <th>Balance</th>
+            <th>Reason to call</th>
+          </tr>
+        </thead>
+        <tbody id="triageRows"></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="ai-card">
@@ -532,6 +569,67 @@ document.getElementById("addLoan").addEventListener("click", function () {
       const button = event.target.closest(".draft-btn");
       if (!button) return;
       draftReminder(button.dataset.id, button);
+    });
+
+    async function runTriage(buttonEl) {
+      const status = document.getElementById("triageStatus");
+      const wrap = document.getElementById("triageTableWrap");
+      const rows = document.getElementById("triageRows");
+
+      status.hidden = false;
+      status.textContent = "Triaging…";
+      wrap.hidden = true;
+      if (buttonEl) buttonEl.disabled = true;
+
+      try {
+        const response = await fetch("/api/triage", {
+          method: "POST",
+          headers: { ...authHeaders() },
+        });
+
+        if (response.status === 401) {
+          sessionStorage.removeItem(SESSION_KEY);
+          showLogin();
+          return;
+        }
+
+        if (!response.ok) {
+          const message = await response.text();
+          status.textContent = message || "Something went wrong. Please try again.";
+          return;
+        }
+
+        const { triage } = await response.json();
+
+        if (!Array.isArray(triage) || triage.length === 0) {
+          status.textContent = "No late loans to call — nothing to triage.";
+          return;
+        }
+
+        rows.innerHTML = "";
+        for (const item of triage) {
+          const balanceText = "$" + Number(item.balance).toLocaleString();
+          rows.innerHTML += `
+            <tr>
+              <td>${item.rank}</td>
+              <td class="loan-id">${item.id}</td>
+              <td>${item.borrower}</td>
+              <td class="balance">${balanceText}</td>
+              <td>${item.reason}</td>
+            </tr>`;
+        }
+
+        status.hidden = true;
+        wrap.hidden = false;
+      } catch (err) {
+        status.textContent = "Something went wrong. Please try again.";
+      } finally {
+        if (buttonEl) buttonEl.disabled = false;
+      }
+    }
+
+    document.getElementById("triageBtn").addEventListener("click", function () {
+      runTriage(this);
     });
 
     document.getElementById("askAi").addEventListener("click", askQuestion);
