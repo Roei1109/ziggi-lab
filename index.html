@@ -319,6 +319,7 @@
         <tbody id="triageRows"></tbody>
       </table>
     </div>
+    <div id="triageApprove" style="margin-top:16px"></div>
   </section>
 
   <section class="ai-card">
@@ -571,14 +572,53 @@ document.getElementById("addLoan").addEventListener("click", function () {
       draftReminder(button.dataset.id, button);
     });
 
+    async function approveCallList(callList, approveBtn, resultEl) {
+      approveBtn.disabled = true;
+
+      try {
+        const response = await fetch("/api/approve-calls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ call_list: callList }),
+        });
+
+        if (response.status === 401) {
+          sessionStorage.removeItem(SESSION_KEY);
+          showLogin();
+          return;
+        }
+
+        if (!response.ok) {
+          let message = "Something went wrong. Please try again.";
+          try {
+            const body = await response.json();
+            if (body && body.error) message = body.error;
+          } catch (parseErr) {}
+          resultEl.textContent = message;
+          approveBtn.disabled = false;
+          return;
+        }
+
+        const row = await response.json();
+        approveBtn.hidden = true;
+        resultEl.textContent =
+          "Approved by " + row.approved_by + " at " + row.created_at;
+      } catch (err) {
+        resultEl.textContent = "Something went wrong. Please try again.";
+        approveBtn.disabled = false;
+      }
+    }
+
     async function runTriage(buttonEl) {
       const status = document.getElementById("triageStatus");
       const wrap = document.getElementById("triageTableWrap");
       const rows = document.getElementById("triageRows");
+      const approveArea = document.getElementById("triageApprove");
 
       status.hidden = false;
       status.textContent = "Triaging…";
       wrap.hidden = true;
+      approveArea.innerHTML = "";
       if (buttonEl) buttonEl.disabled = true;
 
       try {
@@ -621,6 +661,25 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
         status.hidden = true;
         wrap.hidden = false;
+
+        const approveBtn = document.createElement("button");
+        approveBtn.type = "button";
+        approveBtn.className = "triage-btn";
+        approveBtn.textContent = "Approve call list";
+
+        const approveResult = document.createElement("div");
+        approveResult.className = "ai-answer";
+        approveResult.style.marginTop = "12px";
+        approveResult.hidden = false;
+        approveResult.textContent = "";
+
+        approveBtn.addEventListener("click", function () {
+          approveResult.textContent = "";
+          approveCallList(triage, approveBtn, approveResult);
+        });
+
+        approveArea.appendChild(approveBtn);
+        approveArea.appendChild(approveResult);
       } catch (err) {
         status.textContent = "Something went wrong. Please try again.";
       } finally {
