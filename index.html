@@ -328,6 +328,25 @@
     <button id="askAi" type="button">Ask</button>
     <div id="aiAnswer" class="ai-answer"></div>
   </section>
+
+  <section class="ai-card">
+    <h2>Approval history</h2>
+    <p style="color:#8A8A99;font-size:14px;margin-bottom:16px">Every approved call list, oldest first.</p>
+    <button id="historyBtn" type="button" class="triage-btn">Show history</button>
+    <div id="historyStatus" class="ai-answer" hidden></div>
+    <div id="historyTableWrap" class="table-card" style="margin-top:16px" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>Approved by</th>
+            <th>When</th>
+            <th>Calls</th>
+          </tr>
+        </thead>
+        <tbody id="historyRows"></tbody>
+      </table>
+    </div>
+  </section>
   </div>
 
   <script>
@@ -689,6 +708,89 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
     document.getElementById("triageBtn").addEventListener("click", function () {
       runTriage(this);
+    });
+
+    // Human-readable local date/time, e.g. "Jul 11, 7:53 PM" — never the raw ISO.
+    function formatWhen(iso) {
+      const when = new Date(iso);
+      if (Number.isNaN(when.getTime())) return "—";
+      return when.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    // Call count is computed here from the array length — never a stored field.
+    function callCount(callList) {
+      if (Array.isArray(callList)) return callList.length;
+      if (typeof callList === "string") {
+        try {
+          const parsed = JSON.parse(callList);
+          return Array.isArray(parsed) ? parsed.length : 0;
+        } catch (parseErr) {
+          return 0;
+        }
+      }
+      return 0;
+    }
+
+    async function loadHistory(buttonEl) {
+      const status = document.getElementById("historyStatus");
+      const wrap = document.getElementById("historyTableWrap");
+      const rows = document.getElementById("historyRows");
+
+      status.hidden = false;
+      status.textContent = "Loading…";
+      wrap.hidden = true;
+      if (buttonEl) buttonEl.disabled = true;
+
+      try {
+        const response = await fetch("/api/get-approvals", {
+          headers: authHeaders(),
+        });
+
+        if (response.status === 401) {
+          sessionStorage.removeItem(SESSION_KEY);
+          showLogin();
+          return;
+        }
+
+        if (!response.ok) {
+          status.textContent = "Something went wrong. Please try again.";
+          return;
+        }
+
+        const approvals = await response.json();
+
+        if (!Array.isArray(approvals) || approvals.length === 0) {
+          status.textContent = "No approvals yet.";
+          return;
+        }
+
+        // Rows arrive oldest first (ordered in the query); render in that order.
+        rows.innerHTML = "";
+        for (const row of approvals) {
+          rows.innerHTML += `
+            <tr>
+              <td>${row.approved_by}</td>
+              <td>${formatWhen(row.created_at)}</td>
+              <td class="balance">${callCount(row.call_list)}</td>
+            </tr>`;
+        }
+
+        status.hidden = true;
+        wrap.hidden = false;
+      } catch (err) {
+        status.textContent = "Something went wrong. Please try again.";
+      } finally {
+        if (buttonEl) buttonEl.disabled = false;
+      }
+    }
+
+    document.getElementById("historyBtn").addEventListener("click", function () {
+      loadHistory(this);
     });
 
     document.getElementById("askAi").addEventListener("click", askQuestion);
