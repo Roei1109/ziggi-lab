@@ -16,6 +16,17 @@ async function verifyToken(req) {
   return response.ok;
 }
 
+// Whole days from a loan's due date to the portfolio's as-of date. Computed in
+// code so the model never has to do date math. Returns null if either date is
+// missing or unparseable — we never guess a number.
+function computeDaysLate(asOfDate, dueDate) {
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const asOf = Date.parse(asOfDate);
+  const due = Date.parse(dueDate);
+  if (Number.isNaN(asOf) || Number.isNaN(due)) return null;
+  return Math.round((asOf - due) / MS_PER_DAY);
+}
+
 export default async function handler(req, res) {
   if (!(await verifyToken(req))) {
     return res.status(401).send("Unauthorized");
@@ -60,6 +71,44 @@ export default async function handler(req, res) {
     return res.status(400).send("loan is current");
   }
 
+  // Read-only: the portfolio's single as-of date anchors the lateness math.
+  const portfolioResponse = await fetch(
+    SUPABASE_URL + "/rest/v1/Portfolio?select=as_of_date&limit=1",
+    {
+      method: "GET",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: "Bearer " + SUPABASE_KEY,
+      },
+    }
+  );
+
+  if (!portfolioResponse.ok) {
+    const errorBody = await portfolioResponse.text();
+    console.error("Supabase portfolio fetch failed", {
+      status: portfolioResponse.status,
+      error: errorBody,
+    });
+    return res.status(500).send("Portfolio lookup failed");
+  }
+
+  const portfolioRows = await portfolioResponse.json();
+  const asOfDate = Array.isArray(portfolioRows) ? portfolioRows[0]?.as_of_date : null;
+  if (!asOfDate) {
+    console.error("Portfolio as_of_date missing");
+    return res.status(500).send("Portfolio as-of date missing");
+  }
+
+  // Finished numbers, computed here. Days late always comes from code. A NULL
+  // overdue amount keeps its bracket placeholder — it must never print as 0.
+  const daysLate = computeDaysLate(asOfDate, loan.due_date);
+  const daysLateText = daysLate === null ? "[DAYS LATE]" : String(daysLate);
+  const hasOverdue =
+    loan.overdue_amount !== null && loan.overdue_amount !== undefined;
+  const overdueText = hasOverdue
+    ? "$" + Number(loan.overdue_amount).toLocaleString()
+    : "[OVERDUE AMOUNT]";
+
   const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -78,10 +127,9 @@ export default async function handler(req, res) {
         "Your single most important goal is that the borrower quickly understands where their loan stands and exactly how to bring it up to date. " +
         "Every letter must, in the course of the prose, name the borrower, refer to their loan by its ID, state the overdue amount, " +
         "say how many days the payment is past due, and offer three ways to get in touch or resolve it: by phone, by email, or by mail. " +
-        "You know the borrower's name and their loan ID, but you do NOT know the overdue amount or the number of days past due. " +
-        "Wherever those two values belong in your sentences, write the literal text [OVERDUE AMOUNT] and [DAYS LATE] exactly as shown, " +
-        "and never replace, fill in, estimate, or guess them. " +
-        "Never invent any numbers, amounts, dates, or counts of any kind. " +
+        "I am giving you the exact overdue amount and the exact number of days past due; use those values verbatim in your sentences and never change, round, or recompute them. " +
+        "If either value is given to you as bracketed text such as [OVERDUE AMOUNT] or [DAYS LATE], reproduce that bracket text exactly and never replace, fill in, estimate, or guess it. " +
+        "Never invent any other numbers, amounts, dates, or counts of any kind. " +
         "You may include the sentence 'Late fees may apply per your loan terms' — but never state a specific fee amount, penalty figure, or consequence, and never threaten the borrower. " +
         "Keep the tone professional and considerate throughout. " +
         "Write only the letter itself, as plain readable text with no markdown, asterisks, headings, or other formatting symbols.",
@@ -95,8 +143,12 @@ export default async function handler(req, res) {
             " and their loan is identified as " +
             loan.id +
             ". " +
-            "Remember that you do not know the overdue amount or the number of days past due, " +
-            "so use the placeholders [OVERDUE AMOUNT] and [DAYS LATE] verbatim where those belong.",
+            "The overdue amount is " +
+            overdueText +
+            " and the payment is " +
+            daysLateText +
+            " days past due. " +
+            "Use those two values exactly as written where they belong in your sentences.",
         },
       ],
     }),
