@@ -55,6 +55,39 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Failed to record approval" });
   }
 
+  // The approval is recorded. Now mark every loan on the approved call list as
+  // queued for contact. Runs only after the insert above succeeded.
+  const ids = call_list
+    .map((entry) => entry && entry.id)
+    .filter((id) => id !== undefined && id !== null && String(id).trim() !== "");
+
+  if (ids.length > 0) {
+    const idFilter = ids.map((id) => encodeURIComponent(String(id))).join(",");
+    // PATCH sets queued_for_contact to true (never toggles, never increments)
+    // and only on loans whose id is in the approved list — no other loan.
+    const queueResponse = await fetch(
+      SUPABASE_URL + "/rest/v1/Loan?id=in.(" + idFilter + ")",
+      {
+        method: "PATCH",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: "Bearer " + SUPABASE_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ queued_for_contact: true }),
+      }
+    );
+
+    if (!queueResponse.ok) {
+      const errorBody = await queueResponse.text();
+      console.error("Supabase queue-mark update failed", {
+        status: queueResponse.status,
+        error: errorBody,
+      });
+      return res.status(500).json({ error: "Failed to mark loans for contact" });
+    }
+  }
+
   const rows = await response.json();
   const row = Array.isArray(rows) ? rows[0] : rows;
 
