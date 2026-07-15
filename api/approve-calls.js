@@ -35,6 +35,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "call_list must be a non-empty array" });
   }
 
+  // Dedup the call list by loan id before recording — the same loan must never
+  // be approved twice in one list. First occurrence wins; order is preserved.
+  // Entries with no usable id fall through untouched.
+  const seenIds = new Set();
+  const deduped = [];
+  for (const entry of call_list) {
+    const rawId = entry && entry.id;
+    const id =
+      rawId === undefined || rawId === null ? "" : String(rawId).trim();
+    if (id !== "") {
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+    }
+    deduped.push(entry);
+  }
+
   const response = await fetch(SUPABASE_URL + "/rest/v1/Approval", {
     method: "POST",
     headers: {
@@ -43,7 +59,7 @@ export default async function handler(req, res) {
       "Content-Type": "application/json",
       Prefer: "return=representation",
     },
-    body: JSON.stringify({ approved_by, call_list }),
+    body: JSON.stringify({ approved_by, call_list: deduped }),
   });
 
   if (!response.ok) {
@@ -57,7 +73,7 @@ export default async function handler(req, res) {
 
   // The approval is recorded. Now mark every loan on the approved call list as
   // queued for contact. Runs only after the insert above succeeded.
-  const ids = call_list
+  const ids = deduped
     .map((entry) => entry && entry.id)
     .filter((id) => id !== undefined && id !== null && String(id).trim() !== "");
 

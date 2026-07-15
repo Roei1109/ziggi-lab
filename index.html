@@ -124,6 +124,21 @@
       color: #FF8585;
     }
 
+    /* Queue pill — shown when a loan is queued for contact (S29 write). */
+    .queued-pill {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background-color: rgba(120, 170, 255, 0.15);
+      color: #9FB8FF;
+    }
+
+    .queued-dash {
+      color: #565666;
+    }
+
     .login-card {
       max-width: 400px;
       background-color: #14141C;
@@ -274,6 +289,7 @@
   <input id="newId"       placeholder="Loan ID">
   <input id="newBorrower" placeholder="Borrower">
   <input id="newBalance"  placeholder="Balance" type="number">
+  <input id="newDueDate"  placeholder="Due date" type="date">
   <button id="addLoan">Add loan</button>
 </div>
 
@@ -285,8 +301,9 @@
           <th>Loan ID</th>
           <th>Borrower</th>
           <th id="sortBalance">Balance</th>
-          <th>P&I / mo</th> 
+          <th>P&I / mo</th>
           <th>Status</th>
+          <th>Queued</th>
         </tr>
       </thead>
       <tbody id="loanRows"> 
@@ -347,6 +364,33 @@
       </table>
     </div>
   </section>
+
+  <section class="ai-card">
+    <h2>Caller agent</h2>
+    <p style="color:#8A8A99;font-size:14px;margin-bottom:16px">Pick up every queued loan and draft the outreach. Only loans you approved are in the queue.</p>
+    <button id="runCallerBtn" type="button" class="triage-btn">Run caller</button>
+    <div id="callerStatus" class="ai-answer" hidden></div>
+  </section>
+
+  <section class="ai-card">
+    <h2>Contact history</h2>
+    <p style="color:#8A8A99;font-size:14px;margin-bottom:16px">Every outreach the caller agent drafted, oldest first.</p>
+    <button id="contactsBtn" type="button" class="triage-btn">Show contacts</button>
+    <div id="contactsStatus" class="ai-answer" hidden></div>
+    <div id="contactsTableWrap" class="table-card" style="margin-top:16px" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>Loan ID</th>
+            <th>Drafted by</th>
+            <th>When</th>
+            <th>Draft</th>
+          </tr>
+        </thead>
+        <tbody id="contactsRows"></tbody>
+      </table>
+    </div>
+  </section>
   </div>
 
   <script>
@@ -396,6 +440,12 @@ document.getElementById("statLate").textContent    = lateCount;
             ? `<button type="button" class="draft-btn" data-id="${loan.id}">Draft reminder</button>`
             : "";
 
+        // The S29 queue flag, finally visible on the page. Truthy → a pill;
+        // otherwise a quiet dash so a de-queued loan reads clearly.
+        const queuedCell = loan.queued_for_contact
+          ? `<span class="queued-pill">Queued</span>`
+          : `<span class="queued-dash">—</span>`;
+
         tbody.innerHTML += `
           <tr>
             <td class="loan-id">${loan.id}</td>
@@ -403,6 +453,7 @@ document.getElementById("statLate").textContent    = lateCount;
             <td class="balance">${balanceText}</td>
             <td class="balance">${piText}</td>
             <td><span class="status ${loan.status}">${statusLabel}</span>${draftButton}</td>
+            <td>${queuedCell}</td>
           </tr>`;
       }
     }
@@ -502,6 +553,7 @@ document.getElementById("addLoan").addEventListener("click", function () {
   const id       = document.getElementById("newId").value;
   const borrower = document.getElementById("newBorrower").value;
   const balance  = Number(document.getElementById("newBalance").value);
+  const dueDate  = document.getElementById("newDueDate").value;
 
   if (id === "" || borrower === "" || balance <= 0 || Number.isNaN(balance)) {
     alert("Please enter a loan ID, a borrower, and a balance greater than 0.");
@@ -509,6 +561,9 @@ document.getElementById("addLoan").addEventListener("click", function () {
   }
 
   const newLoan = { id, borrower, balance, status: "current" };
+  // Optional: only attach a due date when the field was filled in, so the
+  // add-loan payload stays clean when it is left blank.
+  if (dueDate !== "") newLoan.due_date = dueDate;
   loans.push(newLoan);
   fetch("/api/add-loan", {
     method: "POST",
@@ -621,7 +676,7 @@ document.getElementById("addLoan").addEventListener("click", function () {
         const row = await response.json();
         approveBtn.hidden = true;
         resultEl.textContent =
-          "Approved by " + row.approved_by + " at " + row.created_at;
+          "Approved by " + row.approved_by + " at " + formatWhen(row.created_at);
       } catch (err) {
         resultEl.textContent = "Something went wrong. Please try again.";
         approveBtn.disabled = false;
@@ -791,6 +846,117 @@ document.getElementById("addLoan").addEventListener("click", function () {
 
     document.getElementById("historyBtn").addEventListener("click", function () {
       loadHistory(this);
+    });
+
+    async function runCaller(buttonEl) {
+      const status = document.getElementById("callerStatus");
+      status.hidden = false;
+      status.textContent = "Running the caller…";
+      if (buttonEl) buttonEl.disabled = true;
+
+      try {
+        const response = await fetch("/api/run-caller", {
+          method: "POST",
+          headers: { ...authHeaders() },
+        });
+
+        if (response.status === 401) {
+          sessionStorage.removeItem(SESSION_KEY);
+          showLogin();
+          return;
+        }
+
+        if (!response.ok) {
+          const message = await response.text();
+          status.textContent = message || "Something went wrong. Please try again.";
+          return;
+        }
+
+        const { summary, contacted } = await response.json();
+        const count = typeof contacted === "number" ? contacted : 0;
+        const noun = count === 1 ? "loan" : "loans";
+        status.textContent =
+          "Contacted " + count + " " + noun + "." + (summary ? "\n\n" + summary : "");
+
+        // The queue flags just changed — reload so the Queued column reflects
+        // the de-queued loans.
+        await loadLoans();
+      } catch (err) {
+        status.textContent = "Something went wrong. Please try again.";
+      } finally {
+        if (buttonEl) buttonEl.disabled = false;
+      }
+    }
+
+    document.getElementById("runCallerBtn").addEventListener("click", function () {
+      runCaller(this);
+    });
+
+    async function loadContacts(buttonEl) {
+      const status = document.getElementById("contactsStatus");
+      const wrap = document.getElementById("contactsTableWrap");
+      const rows = document.getElementById("contactsRows");
+
+      status.hidden = false;
+      status.textContent = "Loading…";
+      wrap.hidden = true;
+      if (buttonEl) buttonEl.disabled = true;
+
+      try {
+        const response = await fetch("/api/get-contacts", {
+          headers: authHeaders(),
+        });
+
+        if (response.status === 401) {
+          sessionStorage.removeItem(SESSION_KEY);
+          showLogin();
+          return;
+        }
+
+        if (!response.ok) {
+          status.textContent = "Something went wrong. Please try again.";
+          return;
+        }
+
+        const contacts = await response.json();
+
+        if (!Array.isArray(contacts) || contacts.length === 0) {
+          status.textContent = "No contacts yet.";
+          return;
+        }
+
+        // Rows arrive oldest first (ordered in the query); render in that order.
+        rows.innerHTML = "";
+        for (const row of contacts) {
+          rows.innerHTML += `
+            <tr>
+              <td class="loan-id">${row.loan_id}</td>
+              <td>${row.drafted_by}</td>
+              <td>${formatWhen(row.created_at)}</td>
+              <td style="white-space:pre-wrap">${escapeHtml(row.draft_text)}</td>
+            </tr>`;
+        }
+
+        status.hidden = true;
+        wrap.hidden = false;
+      } catch (err) {
+        status.textContent = "Something went wrong. Please try again.";
+      } finally {
+        if (buttonEl) buttonEl.disabled = false;
+      }
+    }
+
+    // The draft is model-authored free text; escape it before it lands in the
+    // table so it renders as words, never markup.
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    document.getElementById("contactsBtn").addEventListener("click", function () {
+      loadContacts(this);
     });
 
     document.getElementById("askAi").addEventListener("click", askQuestion);
