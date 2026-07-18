@@ -67,10 +67,11 @@ const TOOLS = [
   {
     name: "record_contact",
     description:
-      "Save an outreach draft against ONE queued loan and dequeue it: inserts " +
+      "Save the outreach draft against ONE queued loan and dequeue it: inserts " +
       "one contact row and sets that loan's queued_for_contact flag back to " +
-      "false. Pass the loan_id and the draft_text you produced with " +
-      "draft_outreach. Each loan may be recorded at most once per run.",
+      "false. You must call draft_outreach for the loan first; then call this " +
+      "with the loan_id only — the draft is held for you and looked up by id. " +
+      "Each loan may be recorded at most once per run.",
     input_schema: {
       type: "object",
       properties: {
@@ -78,12 +79,8 @@ const TOOLS = [
           type: "string",
           description: "The id of the queued loan to record contact for.",
         },
-        draft_text: {
-          type: "string",
-          description: "The outreach text to save for this loan.",
-        },
       },
-      required: ["loan_id", "draft_text"],
+      required: ["loan_id"],
     },
   },
 ];
@@ -153,7 +150,7 @@ async function fetchAsOfDate() {
 // Tool: draft outreach for one queued loan. Grounds the model with finished
 // numbers (days late computed here, overdue amount passed verbatim or bracketed)
 // exactly as draft-reminder does, then returns the drafted text. No writes.
-async function draftOutreach(input) {
+async function draftOutreach(input, ctx) {
   const loanId = input && input.loan_id;
   if (loanId === undefined || loanId === null || String(loanId).trim() === "") {
     return { error: "draft_outreach requires a loan_id." };
@@ -233,7 +230,12 @@ async function draftOutreach(input) {
   const textBlock = (data.content || []).find((block) => block.type === "text");
   const draft_text = textBlock ? textBlock.text : "";
 
-  return { loan_id: loan.id, borrower: loan.borrower, draft_text };
+  // The draft lives in the harness, never in the model's mouth. We store it
+  // keyed by loan id and hand the model only a receipt — so record_contact can
+  // recover the exact text without the model re-typing (or altering) it.
+  ctx.drafts.set(String(loan.id), draft_text);
+
+  return { loan_id: loan.id, borrower: loan.borrower, drafted: true };
 }
 
 // Tool: record contact for one queued loan. This is the ONLY write in the run.
@@ -243,13 +245,9 @@ async function draftOutreach(input) {
 // repeat order finds the gate already closed.
 async function recordContact(input, ctx) {
   const loanId = input && input.loan_id;
-  const draftText = input && input.draft_text;
 
   if (loanId === undefined || loanId === null || String(loanId).trim() === "") {
     return { error: "record_contact requires a loan_id." };
-  }
-  if (!draftText || String(draftText).trim() === "") {
-    return { error: "record_contact requires draft_text." };
   }
 
   const key = String(loanId).trim();
@@ -259,6 +257,15 @@ async function recordContact(input, ctx) {
     return {
       error:
         "Loan " + loanId + " was already contacted in this run — skipping.",
+    };
+  }
+
+  // The draft is held by the harness, keyed by loan id. The model never carries
+  // the text; if it never drafted this loan, there is nothing to record.
+  const draftText = ctx.drafts.get(key);
+  if (!draftText || String(draftText).trim() === "") {
+    return {
+      error: "No draft exists for loan " + loanId + " — call draft_outreach first.",
     };
   }
 
@@ -341,7 +348,7 @@ async function recordContact(input, ctx) {
 
 const TOOL_IMPL = {
   get_queued_loans: (_input, _ctx) => getQueuedLoans(),
-  draft_outreach: (input, _ctx) => draftOutreach(input),
+  draft_outreach: (input, ctx) => draftOutreach(input, ctx),
   record_contact: (input, ctx) => recordContact(input, ctx),
 };
 
@@ -354,7 +361,7 @@ const MAX_LAPS = 15;
 
 const SYSTEM_PROMPT =
   "You are the caller agent for a mortgage loan servicing team. Your job in one run is to produce outreach for every loan that has been approved and queued for contact. " +
-  "Work like this: first call get_queued_loans to see the queue. Then, for each queued loan, call draft_outreach to write its email and call script, and then call record_contact with that loan_id and the drafted text to save it and dequeue the loan. " +
+  "Work like this: first call get_queued_loans to see the queue. Then, for each queued loan, call draft_outreach to write its email and call script, and then call record_contact with that loan_id only — the draft is held for you and saved by id — to record it and dequeue the loan. " +
   "Contact each queued loan exactly once. If get_queued_loans returns an empty list, there is nothing to do — say so and stop. " +
   "You may only act through these tools; you cannot read or change anything else. When every queued loan has been recorded, stop and give a short plain-language summary of how many loans you contacted.";
 
@@ -368,8 +375,10 @@ export default async function handler(req, res) {
     return res.status(401).send("Unauthorized");
   }
 
-  // Per-run context. recorded enforces one record_contact per loan per run.
-  const ctx = { recorded: new Set() };
+  // Per-run context. recorded enforces one record_contact per loan per run;
+  // drafts holds each loan's outreach text (keyed by id) so record_contact can
+  // recover it without the model ever re-typing the draft.
+  const ctx = { recorded: new Set(), drafts: new Map() };
 
   // The running conversation. The model drives; the harness executes tools.
   const messages = [
@@ -390,7 +399,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: SYSTEM_PROMPT,
         tools: TOOLS,
         messages,
@@ -416,6 +425,13 @@ export default async function handler(req, res) {
       lap,
       tools: toolUses.map((t) => t.name),
     });
+
+    // Truncated reply — the model ran into its token ceiling mid-thought. Do
+    // not treat a cut-off turn as a finished answer; fail honestly.
+    if (data.stop_reason === "max_tokens") {
+      console.error("run-caller reply truncated", { lap });
+      return res.status(500).send("Model reply truncated");
+    }
 
     // No tool requested — the model is done; return its closing summary.
     if (data.stop_reason !== "tool_use") {
